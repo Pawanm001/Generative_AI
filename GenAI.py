@@ -1,0 +1,108 @@
+import requests
+from PIL import Image
+import gradio as gr
+from io import BytesIO
+import openai
+
+
+
+
+temperature = 0
+max_tokens = 5000
+url = "https://stablediffusionapi.com/api/v3/text2img"
+title = """Text to Image Generation with Stable Diffusion API"""
+description = """#### Get the API key by signing up here [Stable Diffusion API](https://stablediffusionapi.com)."""
+
+openai.api_type = ""
+openai.api_version = " " 
+openai.api_base = "" 
+openai.api_key = " "
+
+
+def get_image(key, prompt, inference_steps, filter):
+    """
+    Create a image using user prompt
+
+    Args:
+    inference_steps (int): Number of denoising steps. Available values: 21, 31, 41, 51
+    filter (bool):	A checker for NSFW images. If such an image is detected, it will be replaced by a blank image.
+    prompt (str): user prompt to be used for ChatGPT model
+
+    Returns:
+        str: ChatGPT response.
+    """
+    payload = {
+        "key": key,
+        "prompt": prompt,
+        "negative_prompt": "((out of frame)), ((extra fingers)), mutated hands, ((poorly drawn hands)), ((poorly drawn face)), (((mutation))), (((deformed))), (((tiling))), ((naked)), ((tile)), ((fleshpile)), ((ugly)), (((abstract))), blurry, ((bad anatomy)), ((bad proportions)), ((extra limbs)), cloned face, (((skinny))), glitchy, ((extra breasts)), ((double torso)), ((extra arms)), ((extra hands)), ((mangled fingers)), ((missing breasts)), (missing lips), ((ugly face)), ((fat)), ((extra legs)), anime",
+        "width": "512",
+        "height": "512",
+        "samples": "1",
+        "num_inference_steps": inference_steps,"safety_checker": filter,"enhance_prompt": "yes","guidance_scale": 7.5}
+    headers = {}
+    response = requests.request("POST", url, headers=headers, data=payload)
+    url1 = str(json.loads(response.text)['output'][0])
+    req = requests.get(url1)
+    img = Image.open(BytesIO(req.content))
+    return img
+
+
+def get_response_from_gpt(system_msg,user_msg):
+    """
+    Create a chat response from chatGPT model using system_msg and user_msg
+
+    Args:
+    system_msg (str): system message
+    user_prompt (str): user prompt to be used for ChatGPT model
+
+    Returns:
+        str: ChatGPT response.
+    """
+
+    response = openai.ChatCompletion.create(
+            engine="gpt-4-32k",
+            messages = [{"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}],
+            temperature=temperature, 
+            max_tokens=max_tokens,
+        )
+    return response['choices'][0]['message']['content']
+
+
+# Create a menu to choose which interface to run
+print("Select an option:")
+print("1. Run Image Interface")
+print("2. Run GPT Interface")
+
+choice = input("Enter your choice: ")
+
+if choice == "1":
+    # Interface for image generation
+    image_interface = gr.Interface(fn=get_image,
+        inputs=[
+            gr.Textbox(label="Enter API key"),
+            gr.Textbox(label="Enter the Prompt"),
+            gr.Number(label="Enter number of steps"),
+            gr.Checkbox(label="Safety filter")
+        ],
+        outputs=gr.Image(type='pil'),
+        title=title,
+        description=description
+    )
+    # Launch the image interface
+    image_interface.launch(debug=True)
+elif choice == "2":
+    # Interface for GPT response
+    gpt_interface = gr.Interface(fn=get_response_from_gpt,
+        inputs=[
+            gr.Textbox(label="System Message"),
+            gr.Textbox(label="User Message")
+        ],
+        outputs=gr.Textbox(),
+        title="GPT Response Interface",
+        description="Get GPT-4 response from system and user messages"
+    )
+    # Launch the GPT interface
+    gpt_interface.launch(debug=True)
+else:
+    print("Invalid choice. Exiting.")
